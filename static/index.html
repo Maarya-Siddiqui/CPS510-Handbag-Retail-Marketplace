@@ -4,46 +4,78 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Handbag Marketplace</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Jost:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <p class="bar">Authenticated pre-owned designer handbags</p>
 
-  <header>
+  <header class="site-header">
     <a class="logo" href="/">Handbag Marketplace</a>
-    <nav>
+    <nav aria-label="Main">
       <button data-view="shop">Shop</button>
-      <button id="sell">Sell</button>
+      <button data-action="sell">Sell</button>
       <button data-view="wishlist">Wishlist</button>
       <button data-view="cart">Cart</button>
       <button id="account">Sign in</button>
     </nav>
   </header>
 
+  <!-- Intro banner (only shown on the Shop page) -->
+  <section class="hero" id="hero">
+    <div>
+      <h1>Designer handbags, pre-owned and authenticated.</h1>
+      <p>Browse bags from Chanel, Hermès, Gucci and more. Every listing shows its authentication status, so you know what you are buying.</p>
+      <a class="solid" href="#collection">Browse the collection</a>
+      <button class="ghost" data-action="sell">Sell your bag</button>
+    </div>
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M32 40C32 10 68 10 68 40" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M18 40h64l6 46c.4 3-1.5 5-4.5 5h-67c-3 0-4.9-2-4.5-5z" fill="currentColor" stroke="rgba(0,0,0,.18)"/>
+      <rect x="44" y="52" width="12" height="8" rx="1.5" fill="rgba(255,255,255,.4)"/>
+    </svg>
+  </section>
+
   <!-- The page content is filled in by app.js -->
-  <main id="view"></main>
+  <main id="collection"><div id="view"></div></main>
+
+  <footer>
+    <div>
+      <a class="logo small" href="/">Handbag Marketplace</a>
+      <p>Buy and sell authenticated pre-owned designer handbags.</p>
+    </div>
+    <nav aria-label="Footer">
+      <button data-view="shop">Shop</button>
+      <button data-action="sell">Sell</button>
+      <button data-view="wishlist">Wishlist</button>
+      <button data-view="cart">Cart</button>
+    </nav>
+  </footer>
 
   <!-- Pop-up: sign in / create account -->
-  <dialog id="authDialog">
+  <dialog id="authDialog" class="form">
     <form id="authForm">
       <h2 id="authTitle">Sign in</h2>
       <div id="nameFields" hidden>
-        <input name="firstName" placeholder="First name">
-        <input name="lastName" placeholder="Last name">
-        <input name="address" placeholder="Address">
+        <input name="firstName" placeholder="First name" autocomplete="given-name">
+        <input name="lastName" placeholder="Last name" autocomplete="family-name">
+        <input name="address" placeholder="Address" autocomplete="street-address">
       </div>
-      <input name="email" type="email" placeholder="Email" required>
-      <input name="password" type="password" placeholder="Password" required>
-      <button class="solid" id="authSubmit">Sign in</button>
+      <input name="email" type="email" placeholder="Email" required autocomplete="email">
+      <input name="password" type="password" placeholder="Password" required autocomplete="current-password">
+      <button class="solid wide" id="authSubmit">Sign in</button>
       <button type="button" class="link" id="authSwitch">Create an account</button>
       <button type="button" class="link" onclick="authDialog.close()">Cancel</button>
     </form>
   </dialog>
 
   <!-- Pop-up: create a listing -->
-  <dialog id="sellDialog">
+  <dialog id="sellDialog" class="form">
     <form id="sellForm">
       <h2>Sell a handbag</h2>
+      <p class="muted">New listings start as pending authentication.</p>
       <input name="designer" placeholder="Designer (e.g. Gucci)" required>
       <input name="modelName" placeholder="Model name" required>
       <select name="colour" aria-label="Colour">
@@ -53,11 +85,11 @@
       <select name="condition" aria-label="Condition">
         <option>Excellent</option><option>Very Good</option><option>Good</option>
       </select>
-      <textarea name="description" placeholder="Description"></textarea>
+      <textarea name="description" placeholder="Description" rows="3"></textarea>
       <input name="serialNumber" placeholder="Serial number" required>
       <input name="price" type="number" min="1" step="0.01" placeholder="Price (CAD)" required>
       <input name="pickupLocation" placeholder="Pickup location (e.g. Toronto)" required>
-      <button class="solid">Post listing</button>
+      <button class="solid wide">Post listing</button>
       <button type="button" class="link" onclick="sellDialog.close()">Cancel</button>
     </form>
   </dialog>
@@ -66,6 +98,6 @@
   <dialog id="detailDialog"></dialog>
 
   <div id="toast" role="status"></div>
-  <script src="/static/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

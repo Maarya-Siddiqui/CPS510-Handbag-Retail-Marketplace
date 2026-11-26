@@ -5,58 +5,90 @@ const $ = s => document.querySelector(s);
 const money = n => "$" + Number(n).toLocaleString("en-CA", { minimumFractionDigits: 2 });
 // esc() stops text typed by users from being treated as HTML
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const swatch = { Black: "#1b1b1b", Tan: "#b08457", Red: "#9b2c2c", Navy: "#1f2f4f", White: "#ece7df", Green: "#3f5c47",
-  Beige: "#d8c8ab", Gold: "#c9a24b", Brown: "#6b4a32", Monogram: "#8a6a46" };
+
+// Handbag colour name -> colour on screen
+const swatch = { Black: "#1f1b18", Tan: "#b4875a", Red: "#8f2d2d", Navy: "#25365a", White: "#faf7f2", Green: "#3d5a45",
+  Beige: "#d9c8aa", Gold: "#c9a24b", Brown: "#6b4a32", Monogram: "#8a6a46" };
+const colourOf = name => swatch[name] || "#c9bfb3";
+
+// A simple handbag drawing, filled with the bag's colour
+const bag = c => `<svg viewBox="0 0 100 100" aria-hidden="true">
+  <path d="M32 40C32 10 68 10 68 40" fill="none" stroke="${c}" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M18 40h64l6 46c.4 3-1.5 5-4.5 5h-67c-3 0-4.9-2-4.5-5z" fill="${c}" stroke="rgba(0,0,0,.18)"/>
+  <rect x="44" y="52" width="12" height="8" rx="1.5" fill="rgba(255,255,255,.4)"/></svg>`;
 
 let user = null;        // the signed-in user (or null)
 let view = "shop";      // which page we're on: shop, wishlist or cart
-let listings = [];      // the handbags currently shown in the shop
+let listings = [];      // the handbags currently in the shop
+let filter = "";        // designer filter ("" = all)
 let signup = false;     // is the sign-in pop-up in "create account" mode?
 
 // Send a request to Python and return its answer (or throw an error message)
 async function api(url, method = "GET", body) {
-  const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+  let r;
+  try {
+    r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body && JSON.stringify(body) });
+  } catch {
+    throw new Error("Can't reach the server. Start it with python3 app.py, then open http://127.0.0.1:5000");
+  }
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || "Something went wrong");
+  if (!r.ok) throw new Error(data.error || `Server error (${r.status}). Open the site through python3 app.py, not as a plain file.`);
   return data;
 }
 function toast(msg) {
   const t = $("#toast");
   t.textContent = msg; t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 2500);
+  setTimeout(() => t.classList.remove("show"), 3000);
 }
-const tile = l => `<div class="tile" style="background:${swatch[l.colour] || "#ddd"}"></div>`;
 
-// Draw the current page
+// ---- Shop page ----
+const card = l => `<article class="card">
+  <button class="tile" onclick="openDetail(${l.listingid})" aria-label="View ${esc(l.designer)} ${esc(l.modelname)}">${bag(colourOf(l.colour))}</button>
+  <h3>${esc(l.designer)}</h3>
+  <p class="muted">${esc(l.modelname)}</p>
+  <p class="price">${money(l.price)}</p>
+  ${l.authenticationstatus === "Authenticated" ? '<span class="badge">Authenticated</span>' : ""}
+</article>`;
+
+function drawShop() {
+  const designers = [...new Set(listings.map(l => l.designer))].sort();
+  const shown = filter ? listings.filter(l => l.designer === filter) : listings;
+  $("#view").innerHTML = `
+    <div class="head"><h1>The collection</h1><span class="muted">${shown.length} handbag${shown.length === 1 ? "" : "s"}</span></div>
+    <div class="chips">${["", ...designers].map(d =>
+      `<button class="chip${d === filter ? " on" : ""}" data-designer="${esc(d)}">${d ? esc(d) : "All"}</button>`).join("")}</div>
+    <div class="grid">${shown.map(card).join("") || '<p class="empty">No handbags match yet. Pick another designer, or sell one of your own.</p>'}</div>`;
+}
+
+// ---- Draw the current page ----
 async function render() {
-  const el = $("#view");
-  document.querySelectorAll("nav [data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === view));
+  const el = $("#view"), title = view === "cart" ? "Your cart" : "Your wishlist";
+  document.querySelectorAll(".site-header [data-view]").forEach(b => b.classList.toggle("on", b.dataset.view === view));
+  $("#hero").hidden = view !== "shop";
   $("#account").textContent = user ? "Sign out" : "Sign in";
   try {
     if (view === "shop") {
       listings = await api("/api/listings");
-      el.innerHTML = `<h1>Handbags</h1><div class="grid">${listings.map(l => `
-        <article class="card">
-          <button class="tile" style="background:${swatch[l.colour] || "#ddd"}" onclick="openDetail(${l.listingid})"
-                  aria-label="View ${esc(l.designer)} ${esc(l.modelname)}"></button>
-          <h3>${esc(l.designer)}</h3>
-          <p>${esc(l.modelname)}, ${esc(l.colour)}</p>
-          <p>${money(l.price)}</p>
-          ${l.authenticationstatus === "Authenticated" ? '<span class="badge">Authenticated</span>' : ""}
-        </article>`).join("") || '<p class="empty">No handbags are listed yet. Be the first to sell one.</p>'}</div>`;
+      drawShop();
     } else if (!user) {
-      el.innerHTML = `<h1>${view === "cart" ? "Cart" : "Wishlist"}</h1><p class="empty">Sign in to see your ${view}.</p>`;
+      el.innerHTML = `<h1>${title}</h1><p class="empty">Sign in to see your ${view}.</p>`;
     } else {
       const items = await api("/api/" + view);
-      const rows = items.map(i => `<div class="row"><span>${esc(i.designer)} ${esc(i.modelname)}</span><span>${money(i.price)}
-        ${view === "wishlist" ? `<button class="link" onclick="act('cart',${i.listingid},'POST')">Add to cart</button>` : ""}
-        <button class="link" onclick="act('${view}',${i.listingid},'DELETE')">Remove</button></span></div>`).join("");
+      const rows = items.map(i => `<div class="row">
+        <div class="thumb">${bag(colourOf(i.colour))}</div>
+        <div><strong>${esc(i.designer)}</strong><br><span class="muted">${esc(i.modelname)}</span></div>
+        <div class="actions"><span class="price">${money(i.price)}</span>
+          ${view === "wishlist" ? `<button class="link" onclick="act('cart',${i.listingid},'POST')">Add to cart</button>` : ""}
+          <button class="link" onclick="act('${view}',${i.listingid},'DELETE')">Remove</button></div></div>`).join("");
       const sub = items.reduce((s, i) => s + i.price, 0);
-      el.innerHTML = `<h1>${view === "cart" ? "Cart" : "Wishlist"}</h1>${rows || `<p class="empty">Your ${view} is empty.</p>`}
-        ${view === "cart" && items.length ? `<p>Subtotal ${money(sub)}. Tax and shipping are added at checkout.</p>
-        <button class="solid" onclick="checkout()">Place order</button>` : ""}`;
+      el.innerHTML = `<h1>${title}</h1>
+        ${rows || `<p class="empty">Nothing here yet. <button class="link" data-view="shop">Browse the collection</button></p>`}
+        ${view === "cart" && items.length ? `<div class="summary"><p class="muted">Subtotal ${money(sub)}. Tax and shipping are added at checkout.</p>
+          <button class="solid" onclick="checkout()">Place order</button></div>` : ""}`;
     }
-  } catch (e) { toast(e.message); }
+  } catch (e) {
+    el.innerHTML = `<p class="empty">${esc(e.message)}</p>`;
+  }
 }
 
 // Add to / remove from the cart or wishlist
@@ -76,20 +108,28 @@ async function checkout() {
   } catch (e) { toast(e.message); }
 }
 
-// Handbag details pop-up (with reviews)
+// ---- Handbag details pop-up (with reviews) ----
 async function openDetail(id) {
-  const l = listings.find(x => x.listingid === id), rv = await api("/api/reviews/" + id);
-  $("#detailDialog").innerHTML = `
-    ${tile(l)}<h2>${esc(l.designer)} ${esc(l.modelname)}</h2>
-    <p>${esc(l.description)}</p>
-    <p>${money(l.price)}. Condition: ${esc(l.handbagcondition)}. Authentication: ${esc(l.authenticationstatus || "None")}. Pickup: ${esc(l.pickuplocation)}.</p>
-    <button class="solid" onclick="act('cart',${id},'POST')">Add to cart</button>
-    <button class="link" onclick="act('wishlist',${id},'POST')">Save</button>
-    <button class="link" onclick="detailDialog.close()">Close</button>
-    <h3>Reviews</h3>
-    ${rv.map(r => `<div class="review">${r.rating}/5 from ${esc(r.firstname)}: ${esc(r.comments)}</div>`).join("") || '<p class="empty">No reviews yet.</p>'}
-    ${user ? `<form onsubmit="review(event,${id})"><select name="rating">${[5, 4, 3, 2, 1].map(n => `<option>${n}</option>`).join("")}</select>
-      <textarea name="comments" placeholder="Write a review" required></textarea><button class="solid">Post review</button></form>` : ""}`;
+  const l = listings.find(x => x.listingid === id);
+  let rv = [];
+  try { rv = await api("/api/reviews/" + id); } catch (e) { toast(e.message); }
+  $("#detailDialog").innerHTML = `<div class="detail">
+    <div class="art">${bag(colourOf(l.colour))}</div>
+    <div class="info">
+      <h2>${esc(l.designer)}</h2>
+      <p class="muted">${esc(l.modelname)}</p>
+      <p class="price">${money(l.price)}</p>
+      <p>${esc(l.description)}</p>
+      <dl><dt>Colour</dt><dd>${esc(l.colour)}</dd><dt>Condition</dt><dd>${esc(l.handbagcondition)}</dd>
+        <dt>Authentication</dt><dd>${esc(l.authenticationstatus || "None")}</dd><dt>Pickup</dt><dd>${esc(l.pickuplocation)}</dd></dl>
+      <button class="solid" onclick="act('cart',${id},'POST')">Add to cart</button>
+      <button class="ghost" onclick="act('wishlist',${id},'POST')">Save for later</button>
+      <h3>Reviews</h3>
+      ${rv.map(r => `<div class="review">${r.rating}/5 from ${esc(r.firstname)}: ${esc(r.comments)}</div>`).join("") || '<p class="empty">No reviews yet.</p>'}
+      ${user ? `<form onsubmit="review(event,${id})"><select name="rating" aria-label="Rating">${[5, 4, 3, 2, 1].map(n => `<option>${n}</option>`).join("")}</select>
+        <textarea name="comments" placeholder="Write a review" rows="2" required></textarea><button class="solid">Post review</button></form>` : ""}
+    </div>
+    <button class="x" aria-label="Close" onclick="detailDialog.close()">&times;</button></div>`;
   $("#detailDialog").showModal();
 }
 async function review(e, id) {
@@ -100,8 +140,7 @@ async function review(e, id) {
   } catch (err) { toast(err.message); }
 }
 
-// SELL: open the form, then send it to Python, which saves it in Oracle
-$("#sell").onclick = () => user ? sellDialog.showModal() : (setAuthMode(false), authDialog.showModal());
+// ---- Sell: send the form to Python, which saves it in Oracle ----
 $("#sellForm").onsubmit = async e => {
   e.preventDefault();
   try {
@@ -111,7 +150,7 @@ $("#sellForm").onsubmit = async e => {
   } catch (err) { toast(err.message); }
 };
 
-// Sign in / create account
+// ---- Sign in / create account ----
 function setAuthMode(on) {
   signup = on;
   $("#nameFields").hidden = !on;
@@ -130,7 +169,14 @@ $("#account").onclick = async () => {
   if (user) { await api("/api/logout", "POST"); user = null; view = "shop"; render(); }
   else { setAuthMode(false); authDialog.showModal(); }
 };
-document.querySelectorAll("nav [data-view]").forEach(b => b.onclick = () => { view = b.dataset.view; render(); });
+
+// ---- Clicks on menu links, designer filters and Sell buttons (works for anything added later too) ----
+document.addEventListener("click", e => {
+  const v = e.target.closest("[data-view]"), d = e.target.closest("[data-designer]"), s = e.target.closest("[data-action='sell']");
+  if (v) { view = v.dataset.view; render(); window.scrollTo(0, 0); }
+  if (d) { filter = d.dataset.designer; drawShop(); }
+  if (s) { if (user) sellDialog.showModal(); else { setAuthMode(false); authDialog.showModal(); } }
+});
 
 // On page load: find out who is signed in, then draw the shop
-(async () => { user = await api("/api/me"); render(); })();
+(async () => { try { user = await api("/api/me"); } catch {} render(); })();

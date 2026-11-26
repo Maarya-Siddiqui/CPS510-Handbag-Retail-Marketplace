@@ -16,7 +16,7 @@ DB_USER = "your_username"
 DB_PASSWORD = "your_password"
 DB_DSN = "hostname:1521/service_name"      # host:port/service_name
 
-app = Flask(__name__, static_folder="static", static_url_path="/static")
+app = Flask(__name__, static_folder="static", static_url_path="")
 app.secret_key = "change-this-to-any-long-random-text"
 
 
@@ -206,7 +206,7 @@ def add_review():
 def get_cart():
     uid = need_user()
     return jsonify(select("""
-        SELECT l.ListingID, ci.PriceAdded AS Price, h.Designer, h.ModelName
+        SELECT l.ListingID, ci.PriceAdded AS Price, h.Designer, h.ModelName, h.Colour
         FROM ShoppingCart c
         JOIN CartItem ci ON ci.CartID = c.CartID
         JOIN Listing l ON l.ListingID = ci.ListingID
@@ -242,7 +242,7 @@ def remove_from_cart(listing_id):
 def get_wishlist():
     uid = need_user()
     return jsonify(select("""
-        SELECT l.ListingID, l.Price, h.Designer, h.ModelName
+        SELECT l.ListingID, l.Price, h.Designer, h.ModelName, h.Colour
         FROM Wishlist w
         JOIN WishlistItem wi ON wi.WishlistID = w.WishlistID
         JOIN Listing l ON l.ListingID = wi.ListingID
